@@ -1,0 +1,26 @@
+# ── Core data 
+pandas>=2.1
+numpy>=1.26
+requests>=2.31
+pyarrow>=14.0
+
+# ── Infrastructure (AWS + MongoDB) 
+pymongo>=4.6
+boto3>=1.34
+s3fs>=2024.2.0
+
+# ── Machine learning 
+scikit-learn>=1.4
+xgboost>=2.0
+prophet>=1.1
+
+# ── Explainability 
+shap>=0.44
+matplotlib>=3.8
+seaborn>=0.13
+
+# ── Web app 
+streamlit>=1.35
+plotly>=5.20
+joblib>=1.3
+python-dotenv>=1.0
