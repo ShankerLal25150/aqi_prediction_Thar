@@ -2,10 +2,9 @@ name: Daily AQI Model Training
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
-# CRITICAL: This allows the bot to actually push the files back to your repo
 permissions:
   contents: write
 
@@ -27,19 +26,21 @@ jobs:
           pip install -r requirements.txt
 
       - name: Update Historical Data
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
         run: |
-          # Dynamically grab today's date so the backfill is always up-to-date
           TODAY=$(date +%Y-%m-%d)
           python backfill.py --start 2022-01-01 --end $TODAY
           
       - name: Execute Training Pipeline
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
         run: python model_training.py
         
       - name: Commit and Push New Models
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # Add the updated data file alongside the models
           git add *.joblib shap_feature_importance.png thar_historical_training_data.parquet
           git commit -m "Automated daily model retraining and data update" || echo "No changes to commit"
           git push
