@@ -1,120 +1,136 @@
 """
-Tharparkar AQI — Multi-Model Training Pipeline
-==============================================
-Trains Ridge, RandomForest, and XGBoost locally. 
-Picks the best model, computes SHAP explainability, and saves the winner.
+Tharparkar AQI - 72 Hour Multi Model Training
+
+This script trains separate models for
+24-hour, 48-hour, and 72-hour AQI prediction.
 """
+
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+import joblib
+
 from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import joblib
-import shap
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error
 
-# Import your custom preprocessing module
-from preprocessing import (
-    preprocess_features, 
-    check_data_leakage, 
-    check_r2_validity, 
-    classification_report_from_aqi
-)
+from preprocessing import preprocess_features, check_data_leakage
 
-def time_split(X, y, val_ratio: float = 0.15):
-    """Split keeping time order intact. NEVER shuffle time-series data."""
+
+def time_split(X, y, val_ratio=0.15):
     n = len(X)
-    split = int(n * (1 - val_ratio))
-    return X[:split], X[split:], y[:split], y[split:]
+    split_index = int(n * (1 - val_ratio))
 
-def save_shap_plot(model, X_sample: np.ndarray, feature_names: list, out_path: str):
-    """Compute SHAP values and save a summary bar chart."""
-    try:
-        explainer = shap.TreeExplainer(model)
-        shap_vals = explainer.shap_values(X_sample)
-        plt.figure(figsize=(10, 7))
-        shap.summary_plot(shap_vals, X_sample, feature_names=feature_names, plot_type="bar", show=False)
-        plt.title("SHAP Feature Importance (What drives pollution?)")
-        plt.tight_layout()
-        plt.savefig(out_path, dpi=150, bbox_inches="tight")
-        plt.close()
-        print(f"[shap] Saved → {out_path}")
-    except Exception as e:
-        print(f"[shap] Could not generate plot: {e}")
+    X_train = X[:split_index]
+    X_val = X[split_index:]
+
+    y_train = y[:split_index]
+    y_val = y[split_index:]
+
+    return X_train, X_val, y_train, y_val
+
 
 def main():
-    print("="*60)
-    print("  Tharparkar Multi-Model Tournament (24h Forecast)")
-    print("="*60)
+    print("=" * 60)
+    print("Tharparkar AQI Model Training")
+    print("=" * 60)
 
-    # 1. Load Local Parquet Data
     df = pd.read_parquet("thar_historical_training_data.parquet")
 
-    target_col = "aqi_plus_24h"
-    drop_cols = ["timestamp", "location", "aqi_plus_24h", "aqi_plus_48h", "aqi_plus_72h"]
-    feature_cols = [col for col in df.columns if col not in drop_cols]
+    horizons = [24, 48, 72]
+    preprocessing_saved = False
 
-    # 2. Leakage Check
-    check_data_leakage(df, target_col, feature_cols)
+    for horizon in horizons:
+        print(f"\nTraining models for +{horizon} hour prediction")
 
-    X_raw = df[feature_cols].values
-    y = df[target_col].values
+        target_col = f"aqi_plus_{horizon}h"
 
-    # 3. Time-Series Split
-    X_tr_raw, X_val_raw, y_train, y_val = time_split(X_raw, y, val_ratio=0.15)
-    print(f"\n[split] Train: {len(y_train)} rows | Validation: {len(y_val)} rows")
+        drop_cols = [
+            "timestamp",
+            "location",
+            "aqi_plus_24h",
+            "aqi_plus_48h",
+            "aqi_plus_72h"
+        ]
 
-    # 4. Preprocessing
-    print("[preprocess] Applying RobustScaler and ±4 IQR clipping...")
-    X_train_scaled, X_val_scaled, imputer, scaler = preprocess_features(X_tr_raw, X_val_raw)
+        feature_cols = [
+            col for col in df.columns
+            if col not in drop_cols
+        ]
 
-    # 5. Define Competing Models
-    models = {
-        "Ridge_Baseline": Ridge(alpha=1.0),
-        "RandomForest": RandomForestRegressor(n_estimators=100, max_depth=10, n_jobs=-1, random_state=42),
-        "XGBoost": xgb.XGBRegressor(n_estimators=200, learning_rate=0.05, max_depth=6, n_jobs=-1, random_state=42)
-    }
+        X_raw = df[feature_cols].values
+        y = df[target_col].values
 
-    results = {}
+        X_train_raw, X_val_raw, y_train, y_val = time_split(
+            X_raw,
+            y,
+            val_ratio=0.15
+        )
 
-    # 6. Train and Evaluate Each Model
-    for name, model in models.items():
-        print(f"\nTraining {name}...")
-        model.fit(X_train_scaled, y_train)
-        preds = model.predict(X_val_scaled)
-        
-        rmse = float(np.sqrt(mean_squared_error(y_val, preds)))
-        mae = float(mean_absolute_error(y_val, preds))
-        r2 = float(r2_score(y_val, preds))
-        
-        results[name] = {"model": model, "rmse": rmse, "mae": mae, "r2": r2, "preds": preds}
-        print(f"  RMSE: {rmse:.2f} | MAE: {mae:.2f} | R2: {r2:.2f}")
+        X_train, X_val, imputer, scaler = preprocess_features(
+            X_train_raw,
+            X_val_raw
+        )
 
-    # 7. Crown the Winner
-    best_name = min(results, key=lambda k: results[k]["rmse"])
-    best_model = results[best_name]["model"]
-    print("\n" + "="*60)
-    print(f" WINNER: {best_name} (Lowest RMSE: {results[best_name]['rmse']:.2f})")
-    print("="*60)
+        models = {
+            "Ridge": Ridge(alpha=1.0),
 
-    # 8. Classification Report for the Winner
-    print("\n[Classification Report for AQI Categories]")
-    print(classification_report_from_aqi(y_val, results[best_name]["preds"]))
+            "RandomForest": RandomForestRegressor(
+                n_estimators=100,
+                max_depth=10,
+                n_jobs=-1,
+                random_state=42
+            ),
 
-    # 9. SHAP Explainability
-    if best_name in ["RandomForest", "XGBoost"]:
-        print("\nComputing SHAP values for the winning model...")
-        save_shap_plot(best_model, X_val_scaled[:500], feature_cols, "shap_feature_importance.png")
+            "XGBoost": xgb.XGBRegressor(
+                n_estimators=200,
+                learning_rate=0.05,
+                max_depth=6,
+                n_jobs=-1,
+                random_state=42
+            )
+        }
 
-    # 10. Save the Winning Assets for the Dashboard
-    joblib.dump(best_model, "best_aqi_model_24h.joblib")
-    joblib.dump(feature_cols, "feature_columns.joblib")
-    joblib.dump(imputer, "imputer.joblib")
-    joblib.dump(scaler, "scaler.joblib")
-    print("\n[success] Saved winning model, scaler, and imputer to disk.")
+        results = {}
+
+        for model_name, model in models.items():
+            model.fit(X_train, y_train)
+
+            predictions = model.predict(X_val)
+
+            rmse = np.sqrt(
+                mean_squared_error(y_val, predictions)
+            )
+
+            results[model_name] = {
+                "model": model,
+                "rmse": float(rmse)
+            }
+
+            print(f"{model_name} RMSE: {rmse:.2f}")
+
+        best_model_name = min(
+            results,
+            key=lambda name: results[name]["rmse"]
+        )
+
+        best_model = results[best_model_name]["model"]
+
+        print(f"Best model for +{horizon}h: {best_model_name}")
+
+        model_path = f"best_aqi_model_{horizon}h.joblib"
+        joblib.dump(best_model, model_path)
+
+        if not preprocessing_saved:
+            joblib.dump(feature_cols, "feature_columns.joblib")
+            joblib.dump(imputer, "imputer.joblib")
+            joblib.dump(scaler, "scaler.joblib")
+
+            preprocessing_saved = True
+
+    print("\nTraining complete.")
+    print("Models and preprocessing files saved successfully.")
+
 
 if __name__ == "__main__":
     main()
