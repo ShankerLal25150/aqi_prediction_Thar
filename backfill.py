@@ -1,12 +1,16 @@
-"""
-Tharparkar AQI — Historical Backfill
-Fetches 2+ years of data for ALL 5 Tharparkar locations
-"""
+#Historical Backfill 2+ years of data for 5 locations
 
 import argparse
 import requests
+import logging
 import pandas as pd
 from feature_pipeline import THAR_LOCATIONS, engineer_features
+
+# Configure standard Python logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def fetch_historical_weather(lat: float, lon: float, start: str, end: str) -> pd.DataFrame:
     url = (
@@ -57,7 +61,7 @@ def fetch_historical_air_quality(lat: float, lon: float, start: str, end: str) -
 
 def process_location(loc_name: str, info: dict, start: str, end: str) -> pd.DataFrame:
     """Fetches and engineers data for a single location safely."""
-    print(f"\n[{loc_name}] Fetching {start} to {end}...")
+    logging.info(f"[{loc_name}] Fetching {start} to {end}...")
     
     weather_df = fetch_historical_weather(info["lat"], info["lon"], start, end)
     aq_df      = fetch_historical_air_quality(info["lat"], info["lon"], start, end)
@@ -95,7 +99,7 @@ def process_location(loc_name: str, info: dict, start: str, end: str) -> pd.Data
     threshold = 0.3 * df.shape[1]
     df = df.dropna(thresh=int(df.shape[1] - threshold)).reset_index(drop=True)
     
-    print(f"  ✅ Engineered {len(df)} rows for {loc_name}.")
+    logging.info(f"Engineered {len(df)} rows for {loc_name}.")
     return df
 
 def main():
@@ -104,9 +108,9 @@ def main():
     parser.add_argument("--end",   default="2024-12-31", help="YYYY-MM-DD")
     args = parser.parse_args()
 
-    print("=" * 65)
-    print(f" STARTING THARPARKAR BACKFILL: {args.start} -> {args.end}")
-    print("=" * 65)
+    logging.info("=" * 65)
+    logging.info(f"STARTING THARPARKAR BACKFILL: {args.start} -> {args.end}")
+    logging.info("=" * 65)
 
     all_location_dfs = []
     
@@ -115,7 +119,7 @@ def main():
             loc_df = process_location(loc_name, info, args.start, args.end)
             all_location_dfs.append(loc_df)
         except Exception as e:
-            print(f"  ❌ FAILED {loc_name}: {e}")
+            logging.error(f" FAILED {loc_name}: {e}")
 
     # Combine all 5 locations into one master dataset
     master_df = pd.concat(all_location_dfs, ignore_index=True)
@@ -124,12 +128,12 @@ def main():
     out_file = "thar_historical_training_data.parquet"
     master_df.to_parquet(out_file, index=False)
     
-    print("\n" + "=" * 65)
-    print(f" BACKFILL COMPLETE")
-    print(f" Total Rows: {len(master_df)}")
-    print(f" Columns:    {master_df.shape[1]}")
-    print(f" Saved To:   {out_file}")
-    print("=" * 65)
+    logging.info("=" * 65)
+    logging.info("BACKFILL COMPLETE")
+    logging.info(f"Total Rows: {len(master_df)}")
+    logging.info(f"Columns:    {master_df.shape[1]}")
+    logging.info(f"Saved To:   {out_file}")
+    logging.info("=" * 65)
 
 if __name__ == "__main__":
     main()

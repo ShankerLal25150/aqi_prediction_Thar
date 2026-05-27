@@ -1,14 +1,12 @@
-"""
-Tharparkar AQI - 72 Hour Multi Model Training
-
-This script trains separate models for
-24-hour, 48-hour, and 72-hour AQI prediction.
+"""AQI Model Training -> trains models for
+24, 48 and 72 hours for  aqi predictionn
 """
 
 import pandas as pd
 import numpy as np
 import xgboost as xgb
 import joblib
+import logging
 
 from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
@@ -16,6 +14,11 @@ from sklearn.metrics import mean_squared_error
 
 from preprocessing import preprocess_features, check_data_leakage
 
+# Configure standard Python logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def time_split(X, y, val_ratio=0.15):
     n = len(X)
@@ -31,9 +34,9 @@ def time_split(X, y, val_ratio=0.15):
 
 
 def main():
-    print("=" * 60)
-    print("Tharparkar AQI Model Training")
-    print("=" * 60)
+    logging.info("=" * 60)
+    logging.info("Tharparkar AQI Model Training")
+    logging.info("=" * 60)
 
     df = pd.read_parquet("thar_historical_training_data.parquet")
 
@@ -41,7 +44,7 @@ def main():
     preprocessing_saved = False
 
     for horizon in horizons:
-        print(f"\nTraining models for +{horizon} hour prediction")
+        logging.info(f"Training models for +{horizon} hour prediction")
 
         target_col = f"aqi_plus_{horizon}h"
 
@@ -107,7 +110,7 @@ def main():
                 "rmse": float(rmse)
             }
 
-            print(f"{model_name} RMSE: {rmse:.2f}")
+            logging.info(f"{model_name} RMSE: {rmse:.2f}")
 
         best_model_name = min(
             results,
@@ -116,7 +119,7 @@ def main():
 
         best_model = results[best_model_name]["model"]
 
-        print(f"Best model for +{horizon}h: {best_model_name}")
+        logging.info(f"Best model for +{horizon}h: {best_model_name}")
 
         model_path = f"best_aqi_model_{horizon}h.joblib"
         joblib.dump(best_model, model_path)
@@ -128,8 +131,8 @@ def main():
 
             preprocessing_saved = True
 
-    print("\nTraining complete.")
-    print("Models and preprocessing files saved successfully.")
+    logging.info("Training complete.")
+    logging.info("Models and preprocessing files saved successfully.")
 
 
 if __name__ == "__main__":
