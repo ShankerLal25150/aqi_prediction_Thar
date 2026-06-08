@@ -35,12 +35,14 @@ jobs:
       - name: Execute Training Pipeline
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: python model_training.py
         
-      - name: Commit and Push New Models
+      - name: Commit and Push Data Updates
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add *.joblib shap_feature_importance.png thar_historical_training_data.parquet
-          git commit -m "Automated daily model retraining and data update" || echo "No changes to commit"
+          git add shap_feature_importance.png thar_historical_training_data.parquet
+          git commit -m "Automated daily data update" || echo "No changes to commit"
           git push
