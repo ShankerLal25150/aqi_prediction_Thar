@@ -1,4 +1,4 @@
-#AQI Prediction Dashboard- displays live AQI data andpredicts AQI levels for the next 72 hours.
+#AQI Prediction Dashboard- displays live AQI data andpredicts AQI levels for the next 72 hours
 
 import os
 import joblib
