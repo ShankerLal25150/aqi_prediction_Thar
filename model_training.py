@@ -1,5 +1,6 @@
-"""AQI Model Training -> trains models for
-24, 48 and 72 hours for  aqi predictionn
+"""
+AQI Model Training -> trains models for
+24, 48 and 72 hours for  aqi prediction
 """
 
 import pandas as pd
@@ -7,6 +8,8 @@ import numpy as np
 import xgboost as xgb
 import joblib
 import logging
+import boto3
+import os
 
 from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
@@ -131,9 +134,38 @@ def main():
 
             preprocessing_saved = True
 
-    logging.info("Training complete.")
-    logging.info("Models and preprocessing files saved successfully.")
+    logging.info("Local training complete. Initiating AWS S3 Model Registry Upload...")
+    
+    # AWS S3 Upload Logic
+    try:
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY']
+        )
+        bucket_name = 'aqi-data-thar-2026'
 
+        artifacts_to_upload = [
+            "best_aqi_model_24h.joblib",
+            "best_aqi_model_48h.joblib",
+            "best_aqi_model_72h.joblib",
+            "feature_columns.joblib",
+            "imputer.joblib",
+            "scaler.joblib"
+        ]
+
+        for artifact in artifacts_to_upload:
+            if os.path.exists(artifact):
+                s3_path = f"production_models/{artifact}"
+                s3.upload_file(artifact, bucket_name, s3_path)
+                logging.info(f"Successfully uploaded {artifact} to AWS S3.")
+            else:
+                logging.warning(f"File {artifact} not found locally. Skipping upload.")
+
+        logging.info("All artifacts successfully pushed to AWS S3 Registry.")
+
+    except Exception as e:
+        logging.error(f"Failed to upload models to AWS S3: {e}")
 
 if __name__ == "__main__":
     main()
