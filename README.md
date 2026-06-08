@@ -1,6 +1,6 @@
 # 🌫️ Tharparkar AQI Prediction Pipeline
 
-> **72-hour Air Quality Index forecasting for District Tharparkar, Pakistan — powered by a fully automated, cloud-native ML pipeline.**
+> **72-hour Air Quality Index forecasting for District Tharparkar, Pakistan — through cloud-native ML pipeline.**
 
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=github-actions&logoColor=white)](https://github.com/ShankerLal25150/aqi_prediction_Thar/actions)
 [![Model Registry](https://img.shields.io/badge/Model%20Registry-AWS%20S3-FF9900?logo=amazon-s3&logoColor=white)](#)
